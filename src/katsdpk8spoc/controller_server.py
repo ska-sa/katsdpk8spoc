@@ -1,7 +1,11 @@
-#!/usr/bin/env python3
+"""This module contains the SDP Product Controller webserver.
 
+We are expecting this to be run as follows:
+
+python controller_server.py ARGO_TOKEN ARGO_BASE_URL
+"""
 # PoC Master controller
-
+import sys
 import asyncio
 import pprint
 
@@ -10,12 +14,14 @@ import aiohttp
 from aiohttp import web
 from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
 
-from .argotoken import ARGO_BASE_URL  # ARGO_TOKEN
 from .workflow_controller import ProductControllerWorkflow
 
 
+ARGO_TOKEN = sys.argv[-2]
+ARGO_BASE_URL = sys.argv[-1]
+
+
 def dict2html(data: dict):
-    # html = json2html.json2html.convert(data)
     html = "<pre>" + pprint.pformat(data) + "</pre>"
     return html
 
@@ -41,18 +47,17 @@ def html_page(name: str, subarray: int, body: str = "", data: dict = None):
 
 
 async def argo_post(url, headers=None, data=None):
-    _headers = {"content-type": "application/json"}
-    if headers:
-        _headers.update(headers)
+    """Post an ARGO JSON to an URL"""
+    headers = headers or {}
+    headers["content-type"] = "application/json"
     async with aiohttp.ClientSession() as session:
-        resp = await session.post(url, json=data, headers=_headers)
-        # assert resp.status == 200
+        resp = await session.post(url, json=data, headers=headers)
         data = await resp.json()
     return data
 
 
 async def argo_get(url, headers=None):
-    data = ""
+    """Get an ARGO Json to an URL"""
     async with aiohttp.request("GET", url, headers=headers) as resp:
         assert resp.status == 200
         data = await resp.json()
@@ -60,16 +65,30 @@ async def argo_get(url, headers=None):
 
 
 async def start_subarray(subarray: int, receptors: int):
-    wf = ProductControllerWorkflow(subarray)
-    workflow_dict = {"serverDryRun": False}
-    workflow_dict["namespace"] = "sdparray{}".format(subarray)
-    workflow_dict["workflow"] = wf.generate()
+    """Start a subarray with a given number as well as number of receptors
+
+    :param subarray: Subarray number.
+    :param receptors: Receptor number
+    :return: status of the created workflow
+    """
+    wf = ProductControllerWorkflow(subarray, receptors)
+    workflow_dict = {
+        "serverDryRun": False,
+        "namespace": f"sdparray{subarray}",
+        "workflow": wf.generate()
+    }
     url = "{}/api/v1/workflows/sdparray{}".format(ARGO_BASE_URL, subarray)
     status = await argo_post(url, data=workflow_dict)
     return {"status": status, "workflow": workflow_dict}
 
 
 async def stop_workflow(subarray: int, workflow_name: str):
+    """Stop a subarray with
+
+    :param subarray: subarray number
+    :param workflow_name: workflow name
+    :return: status of the stop request
+    """
     _headers = {"content-type": "application/json"}
     url = "{}/api/v1/workflows/sdparray{}/{}/terminate".format(ARGO_BASE_URL, subarray, workflow_name)
     data = {
@@ -84,9 +103,8 @@ async def stop_workflow(subarray: int, workflow_name: str):
 
 
 async def subarray_status(subarray: int):
-    url = "{}/api/v1/workflows/sdparray{}".format(ARGO_BASE_URL, subarray)
-    # headers = {"Authorization": ARGO_TOKEN}
-    headers = {}
+    url = f"{ARGO_BASE_URL}/api/v1/workflows/sdparray{subarray}"
+    headers = {"Authorization": ARGO_TOKEN}
     return await argo_get(url, headers)
 
 
@@ -191,7 +209,6 @@ async def map_page(request):
 
 async def status_runner(app):
     while True:
-        # app["status_obj"].check()
         await asyncio.sleep(1)
 
 

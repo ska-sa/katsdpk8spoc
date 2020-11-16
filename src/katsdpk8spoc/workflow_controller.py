@@ -1,5 +1,10 @@
+"""This module contains the SDP workflow setup classes.
 
-class Step:
+The ProductControllerWorkflow allows users to set up a PoC workflow.
+"""
+
+
+class WorkflowStep:
     def __init__(self):
         """ Super class of the individual processes
         """
@@ -43,7 +48,7 @@ class Step:
         return template
 
 
-class Telstate(Step):
+class Telstate(WorkflowStep):
 
     def __init__(self):
         """Telstate step
@@ -55,7 +60,7 @@ class Telstate(Step):
         self.daemon = True
 
 
-class Ingest(Step):
+class Ingest(WorkflowStep):
 
     def __init__(self, step_id: int=None):
         """Ingest step
@@ -71,7 +76,7 @@ class Ingest(Step):
         self.image = "cchristelis/ingest:0.5"
 
 
-class Calibrator(Step):
+class Calibrator(WorkflowStep):
 
     def __init__(self, step_id: int=None):
         """Calibrator step
@@ -99,7 +104,7 @@ class Calibrator(Step):
         }
 
 
-class BatchSetup(Step):
+class BatchSetup(WorkflowStep):
 
     def __init__(self):
         """Batch Setup step. This step waits for sufficient inputs from
@@ -115,7 +120,7 @@ class BatchSetup(Step):
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
 
 
-class Batch(Step):
+class Batch(WorkflowStep):
 
     def __init__(self, number: int):
         """The Batch step
