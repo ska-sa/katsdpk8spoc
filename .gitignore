@@ -19,6 +19,7 @@ lib64/
 parts/
 sdist/
 var/
+temp/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
@@ -39,6 +40,7 @@ pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
+cover/
 .tox/
 .nox/
 .coverage
@@ -70,6 +72,7 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+doc/_build/
 
 # PyBuilder
 target/
@@ -127,3 +130,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Common ext.
+*.pyc
+*.pyo
+*.pyd
