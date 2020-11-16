@@ -14,3 +14,4 @@ PyYAML==5.3.1
 strict-rfc3339==0.7
 typing-extensions==3.7.4.3
 yarl==1.6.3
+katversion==1.1
