@@ -9,3 +9,5 @@ pytest
 pytest-cov
 wcwidth                         # via pytest
 zipp                            # via importlib-metadata
+black
+flake8
