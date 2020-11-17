@@ -16,10 +16,10 @@
 
 """This module contains the SDP Product Controller webserver.
 """
-import asyncio
-import pprint
 import argparse
+import asyncio
 import logging
+import pprint
 
 import aiohttp
 import yaml
@@ -334,6 +334,11 @@ def get_config():
     else:
         config["logging"] = "warning"
         logger.setLevel(logging.WARNING)
+
+    # Read the token if it has been supplied.
+    if config.get('argo_token_file'):
+        with open(config.get('argo_token_file')) as fileh:
+            config['argo_token'] = fileh.read().strip()
 
     logging.debug("config=%s", config)
     return config
