@@ -38,6 +38,49 @@ ARGO_TOKEN = sys.argv[-2]
 ARGO_BASE_URL = sys.argv[-1]
 
 
+class ProductController:
+
+    def __init__(self, name, config):
+        self.name = name
+        self.config = config
+
+    async def start(self, subarray, *args, **kwargs):
+        # Please write me
+        return True
+
+    async def stop(self, subarray):
+        # Please write me
+        return True
+
+    async def status(self, subarray):
+        # Please write me
+        return True
+
+
+class SDPController:
+
+    def __init__(self, config):
+        self.config = config
+        self.subarrays = {}
+        for subarray in config.get('subarrays', {}).keys():
+            self.subarrays[subarray] = ProductController(subarray, config)
+
+    def get_subarray(self, subarray):
+        return self.subarray[subarray]
+
+    async def start(self, subarray, *args, **kwargs):
+        return await self.subarray[subarray].start(*args, **kwargs)
+
+    async def stop(self, subarray):
+        return await self.subarray[subarray].stop()
+
+    async def status(self, subarray):
+        return await self.subarray[subarray].status()
+
+    async def check(self):
+        pass
+
+
 def dict2html(data: dict):
     html = "<pre>" + pprint.pformat(data) + "</pre>"
     return html
