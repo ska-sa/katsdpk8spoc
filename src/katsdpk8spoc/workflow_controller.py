@@ -66,7 +66,7 @@ class Telstate(WorkflowStep):
         super().__init__()
         self.name = "telstate"
         self.template_name = "telstate-template"
-        self.image = "redis"
+        self.image = "harbor.sdp.kat.ac.za:443/infra/redis:latest"
         self.daemon = True
 
 
@@ -82,7 +82,7 @@ class Ingest(WorkflowStep):
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
         self.dependencies = ["telstate"]
         self.command = ["python"]
-        self.image = "cchristelis/ingest:0.5"
+        self.image = "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
 
 
 class Calibrator(WorkflowStep):
@@ -97,7 +97,7 @@ class Calibrator(WorkflowStep):
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
         self.dependencies = ["telstate"]
         self.command = ["python"]
-        self.image = "cchristelis/calibrator:0.1"
+        self.image = "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"
         self.resources = {
             "limits": {
                 "cpu": "500m",
@@ -117,7 +117,7 @@ class BatchSetup(WorkflowStep):
         super().__init__()
         self.name = "batch-setup"
         self.template_name = "batch-setup-template"
-        self.image = "cchristelis/batch_setup:0.4"
+        self.image = "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
         self.dependencies = ["telstate"]
         self.command = ["python"]
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
@@ -132,7 +132,7 @@ class Batch(WorkflowStep):
         super().__init__()
         self.name = f"batch{number}"
         self.template_name = "batch-template"
-        self.image = "cchristelis/batch:0.1"
+        self.image = "harbor.sdp.kat.ac.za:443/infra/pocbatch:0.1"
         self.command = ["python"]
         self.arguments = ["./run.py"]
         self.dependencies = ["batch-setup"]
