@@ -6,3 +6,6 @@ subarrays:
     namespace: sdparray1
   subarray2:
     namespace: sdparray2
+components:
+  ingest:
+    image: cchristelis/ingest:0.5

@@ -15,12 +15,7 @@
 ################################################################################
 
 """This module contains the SDP Product Controller webserver.
-
-We are expecting this to be run as follows:
-
-python controller_server.py ARGO_TOKEN ARGO_BASE_URL
 """
-import sys
 import asyncio
 import pprint
 import argparse
@@ -34,48 +29,89 @@ from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
 from .workflow_controller import ProductControllerWorkflow
 
 
-ARGO_TOKEN = sys.argv[-2]
-ARGO_BASE_URL = sys.argv[-1]
-
-
 class ProductController:
-
     def __init__(self, name, config):
         self.name = name
         self.config = config
+        self.namespace = self.config["subarrays"][self.name]["namespace"]
 
-    async def start(self, subarray, *args, **kwargs):
-        # Please write me
+    async def start(self, *args, **kwargs):
+        """Start a subarray with a given number as well as number of receptors
+
+        :param receptors: Receptor number
+        :return: status of the created workflow
+        """
+        wf = ProductControllerWorkflow(
+            self.name, worker_count=int(kwargs.get("receptors"))
+        )
+        workflow_dict = {
+            "serverDryRun": False,
+            "namespace": self.namespace,
+            "workflow": wf.workflow(),
+        }
+        url = "{}/api/v1/workflows/{}".format(self.config["argo_url"], self.namespace)
+        status = await argo_post(url, data=workflow_dict)
+        return {"status": status, "workflow": workflow_dict}
+
+    async def _stop_workflow(self, workflow_name: str):
+        """Stop a subarray with
+
+        :param subarray: subarray number
+        :param workflow_name: workflow name
+        :return: status of the stop request
+        """
+        _headers = {"content-type": "application/json"}
+        url = "{}/api/v1/workflows/{}/{}/terminate".format(
+            self.config["argo_url"], self.namespace, workflow_name
+        )
+        data = {
+            "name": workflow_name,
+            "namespace": self.namespace,
+        }
+        async with aiohttp.ClientSession() as session:
+            resp = await session.put(url, json=data, headers=_headers)
+            # assert resp.status == 200
+            data = await resp.json()
+        return data
+
+    async def stop(self):
+        status = await self.status()
+        items = status.get("items")
+        info = []
+        if items:
+            for wf in items:
+                res = await self._stop_workflow(wf["metadata"]["name"])
+                info.append(res)
         return True
 
-    async def stop(self, subarray):
-        # Please write me
-        return True
-
-    async def status(self, subarray):
-        # Please write me
-        return True
+    async def status(self):
+        argo_base_url = self.config["argo_url"]
+        subarray = self.name
+        url = f"{argo_base_url}/api/v1/workflows/sdparray{subarray}"
+        headers = {}
+        if self.config.get("argo_token"):
+            headers = {"Authorization": self.config.get("argo_token")}
+        return await argo_get(url, headers)
 
 
 class SDPController:
-
     def __init__(self, config):
         self.config = config
         self.subarrays = {}
-        for subarray in config.get('subarrays', {}).keys():
+        for subarray in config.get("subarrays", {}).keys():
             self.subarrays[subarray] = ProductController(subarray, config)
 
     def get_subarray(self, subarray):
         return self.subarray[subarray]
 
     async def start(self, subarray, *args, **kwargs):
-        return await self.subarray[subarray].start(*args, **kwargs)
+        return await self.subarrays[subarray].start(*args, **kwargs)
 
     async def stop(self, subarray):
-        return await self.subarray[subarray].stop()
+        return await self.subarrays[subarray].stop()
 
     async def status(self, subarray):
-        return await self.subarray[subarray].status()
+        return await self.subarrays[subarray].status()
 
     async def check(self):
         pass
@@ -88,9 +124,12 @@ def dict2html(data: dict):
 
 def html_page(name: str, subarray: int, body: str = "", data: dict = None):
     html = "<html><body>"
-    html += "<h1>{} subarray{}</h1>".format(name.title(), subarray)
+    if subarray:
+        html += "<h1>{} subarray{}</h1>".format(name.title(), subarray)
+    else:
+        html += "<h1>{}</h1>".format(name.title())
     html += "<form action='/'><input type='submit' value='Home'></form>"
-    if name != "status":
+    if name != "status" and subarray:
         html += "<form action='/status'>"
         html += "<input type='hidden' name='subarray' value='{}'>".format(subarray)
         html += "<input type='submit' value='Status'></form>"
@@ -124,50 +163,6 @@ async def argo_get(url, headers=None):
     return data
 
 
-async def start_subarray(subarray: int, receptors: int):
-    """Start a subarray with a given number as well as number of receptors
-
-    :param subarray: Subarray number.
-    :param receptors: Receptor number
-    :return: status of the created workflow
-    """
-    wf = ProductControllerWorkflow(subarray, receptors)
-    workflow_dict = {
-        "serverDryRun": False,
-        "namespace": f"sdparray{subarray}",
-        "workflow": wf.generate()
-    }
-    url = "{}/api/v1/workflows/sdparray{}".format(ARGO_BASE_URL, subarray)
-    status = await argo_post(url, data=workflow_dict)
-    return {"status": status, "workflow": workflow_dict}
-
-
-async def stop_workflow(subarray: int, workflow_name: str):
-    """Stop a subarray with
-
-    :param subarray: subarray number
-    :param workflow_name: workflow name
-    :return: status of the stop request
-    """
-    _headers = {"content-type": "application/json"}
-    url = "{}/api/v1/workflows/sdparray{}/{}/terminate".format(ARGO_BASE_URL, subarray, workflow_name)
-    data = {
-        "name": workflow_name,
-        "namespace": "sdparray{}".format(subarray),
-    }
-    async with aiohttp.ClientSession() as session:
-        resp = await session.put(url, json=data, headers=_headers)
-        # assert resp.status == 200
-        data = await resp.json()
-    return data
-
-
-async def subarray_status(subarray: int):
-    url = f"{ARGO_BASE_URL}/api/v1/workflows/sdparray{subarray}"
-    headers = {"Authorization": ARGO_TOKEN}
-    return await argo_get(url, headers)
-
-
 async def start_handle(request):
     """
     ---
@@ -195,9 +190,9 @@ async def start_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
-    response = await start_subarray(
-        request.query["subarray"], request.query["receptors"]
-    )
+    controller = request.app["controller"]
+    subarray = "subarray{}".format(request.query["subarray"])
+    response = await controller.start(subarray, receptors=request.query["receptors"])
     buf = html_page("start", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
 
@@ -223,15 +218,10 @@ async def stop_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
-    status = await subarray_status(request.query["subarray"])
-    items = status.get("items")
-    info = []
-    if items:
-        for wf in items:
-            res = await stop_workflow(request.query["subarray"], wf["metadata"]["name"])
-            info.append(res)
-
-    buf = html_page("stop", subarray=request.query["subarray"], data=info)
+    controller = request.app["controller"]
+    subarray = "subarray{}".format(request.query["subarray"])
+    response = await controller.stop(subarray)
+    buf = html_page("stop", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -256,20 +246,46 @@ async def status_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
-    data = await subarray_status(request.query["subarray"])
-    buf = html_page("status", request.query["subarray"], data=data)
+    controller = request.app["controller"]
+    subarray = "subarray{}".format(request.query["subarray"])
+    response = await controller.status(subarray)
+    buf = html_page("status", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
-async def map_page(request):
-    with open("index.html") as fh:
+async def config_handle(request):
+    """
+    ---
+    description: display system config
+    responses:
+        "200":
+            $ref: '#/components/responses/Reply200Ack'
+        "405":
+            $ref: '#/components/responses/HTTPMethodNotAllowed'
+        "421":
+            $ref: '#/components/responses/HTTPMisdirectedRequest'
+        "422":
+            $ref: '#/components/responses/HTTPUnprocessableEntity'
+    """
+    controller = request.app["controller"]
+    conf = dict(controller.config)
+    conf["argo_token"] = "*" * 20 if conf.get("argo_token") else "undefined"
+    buf = html_page("config", 0, data=conf)
+    return web.Response(body=buf, content_type="text/html")
+
+
+async def home_page(request):
+    with open("src/katsdpk8spoc/index.html") as fh:
         text = fh.read()
     return web.Response(text=text.strip(), content_type="text/html")
 
 
 async def status_runner(app):
+
+    controller = app["controller"]
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(10)
+        await controller.check()
 
 
 async def start_background_tasks(app):
@@ -279,42 +295,54 @@ async def start_background_tasks(app):
 def get_config():
     """Read command line args for config file."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("configfile", help="Configuration file in YAML format.",
-                        type=argparse.FileType('r'))
-    parser.add_argument('-v', action='store_true', default=False,
-                        dest='verbose',
-                        help='Make logging more verbose')
-    parser.add_argument('-d', action='store_true', default=False,
-                        dest='debug',
-                        help='Debug logging, very verbose')
-    parser.add_argument('-q', action='store_true', default=False,
-                        dest='quiet',
-                        help='Quiet, less logs')
+    parser.add_argument(
+        "configfile",
+        help="Configuration file in YAML format.",
+        type=argparse.FileType("r"),
+    )
+    parser.add_argument(
+        "-v",
+        action="store_true",
+        default=False,
+        dest="verbose",
+        help="Make logging more verbose",
+    )
+    parser.add_argument(
+        "-d",
+        action="store_true",
+        default=False,
+        dest="debug",
+        help="Debug logging, very verbose",
+    )
+    parser.add_argument(
+        "-q", action="store_true", default=False, dest="quiet", help="Quiet, less logs"
+    )
     args = parser.parse_args()
     config = yaml.load(args.configfile, Loader=yaml.SafeLoader)
 
     # Set the correct log level.
     logger = logging.getLogger()
     if args.debug:
-        config['logging'] = 'debug'
+        config["logging"] = "debug"
         logger.setLevel(logging.DEBUG)
     elif args.verbose:
-        config['logging'] = 'info'
+        config["logging"] = "info"
         logger.setLevel(logging.INFO)
     elif args.quiet:
-        config['logging'] = 'error'
+        config["logging"] = "error"
         logger.setLevel(logging.ERROR)
     else:
-        config['logging'] = 'warning'
+        config["logging"] = "warning"
         logger.setLevel(logging.WARNING)
 
     logging.debug("config=%s", config)
     return config
 
+
 def main():
     config = get_config()
     app = web.Application()
-    # app["status_obj"] = SdpPcStatus()
+    app["controller"] = SDPController(config)
     app.on_startup.append(start_background_tasks)
 
     swagger = SwaggerDocs(
@@ -326,10 +354,11 @@ def main():
     )
     swagger.add_routes(
         [
-            web.get("/", map_page),
+            web.get("/", home_page),
             web.get("/start", start_handle),
             web.get("/stop", stop_handle),
             web.get("/status", status_handle),
+            web.get("/config", config_handle),
         ]
     )
     web.run_app(app)
