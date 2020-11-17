@@ -64,7 +64,7 @@ class Telstate(WorkflowStep):
     def __init__(self):
         """Telstate step"""
         super().__init__()
-        self.name = ("telstate",)
+        self.name = "telstate"
         self.template_name = "telstate-template"
         self.image = "redis"
         self.daemon = True
@@ -80,8 +80,8 @@ class Ingest(WorkflowStep):
         self.name = f"ingest{step_id}"
         self.template_name = "ingest-template"
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
-        self.dependencies = "telstate"
-        self.command = "python"
+        self.dependencies = ["telstate"]
+        self.command = ["python"]
         self.image = "cchristelis/ingest:0.5"
 
 
@@ -95,8 +95,8 @@ class Calibrator(WorkflowStep):
         self.name = f"calibrator{step_id}"
         self.template_name = "calibrator-template"
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
-        self.dependencies = "telstate"
-        self.command = "python"
+        self.dependencies = ["telstate"]
+        self.command = ["python"]
         self.image = "cchristelis/calibrator:0.1"
         self.resources = {
             "limits": {
@@ -115,11 +115,11 @@ class BatchSetup(WorkflowStep):
         to start.
         """
         super().__init__()
-        self.name = ("batch-setup",)
+        self.name = "batch-setup"
         self.template_name = "batch-setup-template"
         self.image = "cchristelis/batch_setup:0.4"
-        self.dependencies = "telstate"
-        self.command = "python"
+        self.dependencies = ["telstate"]
+        self.command = ["python"]
         self.arguments = ["./run", "-u", "{{tasks.telstate.ip}}"]
 
 
@@ -133,14 +133,14 @@ class Batch(WorkflowStep):
         self.name = f"batch{number}"
         self.template_name = "batch-template"
         self.image = "cchristelis/batch:0.1"
-        self.command = "python"
+        self.command = ["python"]
         self.arguments = ["./run.py"]
-        self.dependencies = "batch-setup"
+        self.dependencies = ["batch-setup"]
         self.when = f"{{tasks.batch-setup.outputs.result}} >= {number}"
 
 
 class ProductControllerWorkflow:
-    def __init__(self, subarray: int, worker_count: int = 10, ttl: int = 600):
+    def __init__(self, namespace: int, worker_count: int = 10, ttl: int = 600):
         """The Product Controller Workflow bringing together all steps in the
         workflow.
 
@@ -149,7 +149,7 @@ class ProductControllerWorkflow:
         :param ttl: The time given before teardown is initatied
         """
         self.api_version = "argoproj.io/v1alpha1"
-        self.namespace = f"sdparray{subarray}"
+        self.namespace = namespace
         self.name = "product-controller"
         self.ttl = ttl
         self._setup_tasks(worker_count)

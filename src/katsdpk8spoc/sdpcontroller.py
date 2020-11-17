@@ -42,7 +42,7 @@ class ProductController:
         :return: status of the created workflow
         """
         wf = ProductControllerWorkflow(
-            self.name, worker_count=int(kwargs.get("receptors"))
+            self.namespace, worker_count=int(kwargs.get("receptors"))
         )
         workflow_dict = {
             "serverDryRun": False,
@@ -336,9 +336,9 @@ def get_config():
         logger.setLevel(logging.WARNING)
 
     # Read the token if it has been supplied.
-    if config.get('argo_token_file'):
-        with open(config.get('argo_token_file')) as fileh:
-            config['argo_token'] = fileh.read().strip()
+    if config.get("argo_token_file"):
+        with open(config.get("argo_token_file")) as fileh:
+            config["argo_token"] = fileh.read().strip()
 
     logging.debug("config=%s", config)
     return config
