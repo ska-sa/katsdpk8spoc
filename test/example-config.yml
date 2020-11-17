@@ -1,0 +1,8 @@
+---
+
+argo_url: http://10.8.103.151:2746
+subarrays:
+  subarray1:
+    namespace: sdparray1
+  subarray2:
+    namespace: sdparray2
