@@ -20,13 +20,14 @@ We are expecting this to be run as follows:
 
 python controller_server.py ARGO_TOKEN ARGO_BASE_URL
 """
-# PoC Master controller
 import sys
 import asyncio
 import pprint
+import argparse
+import logging
 
-# import logging
 import aiohttp
+import yaml
 from aiohttp import web
 from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
 
@@ -232,7 +233,43 @@ async def start_background_tasks(app):
     app["status_runner"] = asyncio.Task(status_runner(app))
 
 
+def get_config():
+    """Read command line args for config file."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("configfile", help="Configuration file in YAML format.",
+                        type=argparse.FileType('r'))
+    parser.add_argument('-v', action='store_true', default=False,
+                        dest='verbose',
+                        help='Make logging more verbose')
+    parser.add_argument('-d', action='store_true', default=False,
+                        dest='debug',
+                        help='Debug logging, very verbose')
+    parser.add_argument('-q', action='store_true', default=False,
+                        dest='quiet',
+                        help='Quiet, less logs')
+    args = parser.parse_args()
+    config = yaml.load(args.configfile, Loader=yaml.SafeLoader)
+
+    # Set the correct log level.
+    logger = logging.getLogger()
+    if args.debug:
+        config['logging'] = 'debug'
+        logger.setLevel(logging.DEBUG)
+    elif args.verbose:
+        config['logging'] = 'info'
+        logger.setLevel(logging.INFO)
+    elif args.quiet:
+        config['logging'] = 'error'
+        logger.setLevel(logging.ERROR)
+    else:
+        config['logging'] = 'warning'
+        logger.setLevel(logging.WARNING)
+
+    logging.debug("config=%s", config)
+    return config
+
 def main():
+    config = get_config()
     app = web.Application()
     # app["status_obj"] = SdpPcStatus()
     app.on_startup.append(start_background_tasks)
