@@ -1,3 +1,19 @@
+################################################################################
+# Copyright (c) 2020, National Research Foundation (SARAO)
+#
+# Licensed under the BSD 3-Clause License (the "License"); you may not use
+# this file except in compliance with the License. You may obtain a copy
+# of the License at
+#
+#   https://opensource.org/licenses/BSD-3-Clause
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
 """This module contains the SDP Product Controller webserver.
 
 We are expecting this to be run as follows:
@@ -216,12 +232,11 @@ async def start_background_tasks(app):
     app["status_runner"] = asyncio.Task(status_runner(app))
 
 
-app = web.Application()
-# app["status_obj"] = SdpPcStatus()
-app.on_startup.append(start_background_tasks)
+def main():
+    app = web.Application()
+    # app["status_obj"] = SdpPcStatus()
+    app.on_startup.append(start_background_tasks)
 
-
-if __name__ == "__main__":
     swagger = SwaggerDocs(
         app,
         swagger_ui_settings=SwaggerUiSettings(path="/api/doc"),
@@ -238,3 +253,7 @@ if __name__ == "__main__":
         ]
     )
     web.run_app(app)
+
+
+if __name__ == "__main__":
+    main()

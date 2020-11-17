@@ -6,9 +6,8 @@ The ProductControllerWorkflow allows users to set up a PoC workflow.
 
 class WorkflowStep:
     def __init__(self):
-        """ Super class of the individual processes
-        """
-        self.name = None,
+        """Super class of the individual processes"""
+        self.name = (None,)
         self.template_name = None
         self.dependencies = None
         self.resources = None
@@ -32,9 +31,7 @@ class WorkflowStep:
         """get the template for the processing step
 
         :return: dict of template that the spec uses"""
-        template = {
-            "container": {"image": self.image},
-            "name": self.template_name}
+        template = {"container": {"image": self.image}, "name": self.template_name}
         if self.command:
             template["container"]["command"] = self.command
         if self.arguments:
@@ -49,20 +46,17 @@ class WorkflowStep:
 
 
 class Telstate(WorkflowStep):
-
     def __init__(self):
-        """Telstate step
-        """
+        """Telstate step"""
         super().__init__()
-        self.name = "telstate",
+        self.name = ("telstate",)
         self.template_name = "telstate-template"
         self.image = "redis"
         self.daemon = True
 
 
 class Ingest(WorkflowStep):
-
-    def __init__(self, step_id: int=None):
+    def __init__(self, step_id: int = None):
         """Ingest step
 
         :param step_id: the unique ingest ID to be assigned to this process
@@ -77,8 +71,7 @@ class Ingest(WorkflowStep):
 
 
 class Calibrator(WorkflowStep):
-
-    def __init__(self, step_id: int=None):
+    def __init__(self, step_id: int = None):
         """Calibrator step
 
         :param step_id: the unique calibrator ID to be assigned to this process
@@ -94,25 +87,20 @@ class Calibrator(WorkflowStep):
             "limits": {
                 "cpu": "500m",
                 "memory": "1Gi",
-                "sdp.kat.ac.za/jellybeans": 1  # Fake resource
+                "sdp.kat.ac.za/jellybeans": 1,  # Fake resource
             },
-            "requests": {
-                "cpu": "500m",
-                "memory": "1Gi",
-                "sdp.kat.ac.za/jellybeans": 1
-            }
+            "requests": {"cpu": "500m", "memory": "1Gi", "sdp.kat.ac.za/jellybeans": 1},
         }
 
 
 class BatchSetup(WorkflowStep):
-
     def __init__(self):
         """Batch Setup step. This step waits for sufficient inputs from
         The Ingest and Calibartor to specify the number of batch processes
         to start.
         """
         super().__init__()
-        self.name = "batch-setup",
+        self.name = ("batch-setup",)
         self.template_name = "batch-setup-template"
         self.image = "cchristelis/batch_setup:0.4"
         self.dependencies = "telstate"
@@ -121,7 +109,6 @@ class BatchSetup(WorkflowStep):
 
 
 class Batch(WorkflowStep):
-
     def __init__(self, number: int):
         """The Batch step
 
@@ -132,14 +119,13 @@ class Batch(WorkflowStep):
         self.template_name = "batch-template"
         self.image = "cchristelis/batch:0.1"
         self.command = "python"
-        self.arguments = ['./run.py']
+        self.arguments = ["./run.py"]
         self.dependencies = "batch-setup"
         self.when = f"{{tasks.batch-setup.outputs.result}} >= {number}"
 
 
 class ProductControllerWorkflow:
-
-    def __init__(self, subarray: int, worker_count: int=10, ttl: int=600):
+    def __init__(self, subarray: int, worker_count: int = 10, ttl: int = 600):
         """The Product Controller Workflow bringing together all steps in the
         workflow.
 
@@ -184,10 +170,7 @@ class ProductControllerWorkflow:
         return {
             "apiVersion": self.api_version,
             "kind": "Workflow",
-            "metadata": {
-                "namespace": self.namespace,
-                "name": self.name
-            },
+            "metadata": {"namespace": self.namespace, "name": self.name},
             "spec": {
                 "entrypoint": self.name,
                 "serviceAccountName": "workflow",
@@ -198,11 +181,10 @@ class ProductControllerWorkflow:
                 },
                 "templates": [
                     {
-                        "dag": {
-                            "tasks": [task.get_step() for task in self.tasks]
-                        },
-                        "name": "product-controller"
+                        "dag": {"tasks": [task.get_step() for task in self.tasks]},
+                        "name": "product-controller",
                     }
-                ] + self._task_containers()
-            }
+                ]
+                + self._task_containers(),
+            },
         }
