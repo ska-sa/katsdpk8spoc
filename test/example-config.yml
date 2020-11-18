@@ -1,0 +1,13 @@
+---
+
+argo_url: http://10.8.103.151:2746
+# argo_token_file: /tmp/my-secret-token
+serviceaccount: workflow
+subarrays:
+  subarray1:
+    namespace: sdparray1
+  subarray2:
+    namespace: sdparray2
+components:
+  ingest:
+    image: cchristelis/ingest:0.5
