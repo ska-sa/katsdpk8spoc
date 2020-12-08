@@ -1,6 +1,6 @@
 ---
 
-argo_url: http://10.8.103.151:2746
+argo_url: http://argo.sdp.kat.ac.za
 # argo_token_file: /tmp/my-secret-token
 serviceaccount: workflow
 subarrays:
