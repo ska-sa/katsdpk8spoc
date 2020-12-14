@@ -44,7 +44,9 @@ class ProductController:
         :return: status of the created workflow
         """
         wf = ProductControllerWorkflow(
-            self.namespace, worker_count=int(kwargs.get("receptors"))
+            self.namespace,
+            self.config,
+            worker_count=int(kwargs.get("receptors"))
         )
         workflow_dict = {
             "serverDryRun": False,
@@ -119,7 +121,12 @@ class SDPController:
         pass
 
     async def get_antennas(self):
-        return self.config.get("antennas", ["m000"])
+        """Get antennas/receptors that this controller is configured with."""
+        return self.config.get("antennas", [])
+
+    async def get_subarrays(self):
+        """Get subarrays that this controller is configured with."""
+        return self.config.get("subarrays", [])
 
 
 def dict2html(data: dict):
@@ -280,8 +287,13 @@ async def config_handle(request):
 
 
 async def home_page(request):
-    antenna = await request.app["controller"].get_antennas()
-    context = {"receptors": antenna}
+    controller = request.app["controller"]
+    antennas = await controller.get_antennas()
+    subarrays = await controller.get_subarrays()
+    context = {
+        "receptors": antennas,
+        "subarrays": subarrays
+    }
     response = aiohttp_jinja2.render_template(
         "index.html", request, context=context)
     return response

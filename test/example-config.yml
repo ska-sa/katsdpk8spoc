@@ -14,10 +14,26 @@ antennas:
   - "m002"
   - "m003"
 components:
-  - type: ingest
+  ingest:
     default_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
     resources:
-  - type: telstate
+      - "allocation_info":
+          "role": "realtime"
+        "name": "cpus"
+        "role": "realtime"
+        "scalar":
+          "value": 1.2
+        "type": "SCALAR"
+  telstate:
     docker_image: "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
-  - type: calibration
+  calibration:
     docker_image: "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"
+    resources: {
+      "limits": {
+        "cpu": "500m",
+        "memory": "1Gi",
+        "sdp.kat.ac.za/jellybeans": 1,  # Fake resource
+      },
+      "requests": {"cpu": "500m", "memory": "1Gi",
+                   "sdp.kat.ac.za/jellybeans": 1},
+    }
