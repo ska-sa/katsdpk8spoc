@@ -8,6 +8,16 @@ subarrays:
     namespace: sdparray1
   subarray2:
     namespace: sdparray2
+antennas:
+  - "m000"
+  - "m001"
+  - "m002"
+  - "m003"
 components:
-  ingest:
-    image: cchristelis/ingest:0.5
+  - type: ingest
+    default_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
+    resources:
+  - type: telstate
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
+  - type: calibration
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"

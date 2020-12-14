@@ -23,7 +23,10 @@
                   <label for="receptors">Number of receptors (between 1 and 64):</label>
                 </p>
                 <p>
-                  <input type="number" id="receptors" name="receptors" min="1" max="64" value=16>
+                  {% for receptor in receptors %}
+                    <input type="checkbox" id="{{receptor}}" name="{{receptor}}" value="{{receptor}}">
+                    <label for="{{receptor}}"> "{{receptor}}"</label><br>
+                  {% endfor %}
                 </p>
                 <p>
                   <input type="submit" value="Start">

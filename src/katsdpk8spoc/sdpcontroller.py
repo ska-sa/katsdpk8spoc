@@ -25,8 +25,10 @@ import aiohttp
 import yaml
 from aiohttp import web
 from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
+import jinja2
+import aiohttp_jinja2
 
-from .workflow_controller import ProductControllerWorkflow
+from workflow_controller import ProductControllerWorkflow
 
 
 class ProductController:
@@ -116,6 +118,9 @@ class SDPController:
     async def check(self):
         pass
 
+    async def get_antennas(self):
+        return self.config.get("antennas", ["m000"])
+
 
 def dict2html(data: dict):
     html = "<pre>" + pprint.pformat(data) + "</pre>"
@@ -163,7 +168,7 @@ async def argo_get(url, headers=None):
     return data
 
 
-async def start_handle(request):
+async def product_configure(request):
     """
     ---
     description: start a subarray
@@ -275,9 +280,11 @@ async def config_handle(request):
 
 
 async def home_page(request):
-    with open("src/katsdpk8spoc/index.html") as fh:
-        text = fh.read()
-    return web.Response(text=text.strip(), content_type="text/html")
+    antenna = await request.app["controller"].get_antennas()
+    context = {"receptors": antenna}
+    response = aiohttp_jinja2.render_template(
+        "index.html", request, context=context)
+    return response
 
 
 async def status_runner(app):
@@ -347,6 +354,10 @@ def get_config():
 def main():
     config = get_config()
     app = web.Application()
+    aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.FileSystemLoader("/src/katsdpk8spoc/")
+    )
     app["controller"] = SDPController(config)
     app.on_startup.append(start_background_tasks)
 
@@ -360,7 +371,7 @@ def main():
     swagger.add_routes(
         [
             web.get("/", home_page),
-            web.get("/start", start_handle),
+            web.get("/product-configure", product_configure),
             web.get("/stop", stop_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
