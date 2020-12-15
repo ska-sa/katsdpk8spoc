@@ -375,7 +375,7 @@ def main():
     app = web.Application()
     aiohttp_jinja2.setup(
         app,
-        loader=jinja2.FileSystemLoader("/src/katsdpk8spoc/")
+        loader=jinja2.FileSystemLoader("/src/templates/")
     )
     app["controller"] = SDPController(config)
     app.on_startup.append(start_background_tasks)
