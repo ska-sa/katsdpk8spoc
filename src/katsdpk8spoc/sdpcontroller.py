@@ -46,7 +46,7 @@ class ProductController:
         wf = ProductControllerWorkflow(
             self.namespace,
             self.config,
-            worker_count=int(kwargs.get("receptors"))
+            worker_count=self.calculate_batch_limit()
         )
         workflow_dict = {
             "serverDryRun": False,
@@ -97,6 +97,13 @@ class ProductController:
             headers = {"Authorization": self.config.get("argo_token")}
         return await argo_get(url, headers)
 
+    def calculate_batch_limit(self):
+        """This is the batch job size limit. For now we are returning 10,
+        but later on we might have a better number.
+        The exact number of batch jobs depends on the, for now, "random" number
+        obtained in the Calibrator and Ingest nodes."""
+        return 10
+
 
 class SDPController:
     def __init__(self, config):
@@ -120,11 +127,11 @@ class SDPController:
     async def check(self):
         pass
 
-    async def get_antennas(self):
+    def get_antennas(self):
         """Get antennas/receptors that this controller is configured with."""
         return self.config.get("antennas", [])
 
-    async def get_subarrays(self):
+    def get_subarrays(self):
         """Get subarrays that this controller is configured with."""
         return self.config.get("subarrays", [])
 
@@ -288,8 +295,8 @@ async def config_handle(request):
 
 async def home_page(request):
     controller = request.app["controller"]
-    antennas = await controller.get_antennas()
-    subarrays = await controller.get_subarrays()
+    antennas = controller.get_antennas()
+    subarrays = controller.get_subarrays()
     context = {
         "receptors": antennas,
         "subarrays": subarrays
