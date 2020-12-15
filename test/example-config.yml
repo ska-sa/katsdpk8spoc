@@ -17,14 +17,6 @@ components:
   ttl: 600
   ingest:
     default_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
-    resources:
-      - "allocation_info":
-          "role": "realtime"
-        "name": "cpus"
-        "role": "realtime"
-        "scalar":
-          "value": 1.2
-        "type": "SCALAR"
   telstate:
     docker_image: "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
   calibration:
