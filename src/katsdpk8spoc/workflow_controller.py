@@ -23,14 +23,14 @@ import random
 
 class WorkflowStep:
     def __init__(
-            self, image=None, name=None, template_name=None, deamon=False,
+            self, image=None, name=None, template_name=None, daemon=False,
             dependencies=None, resources=None, command=None, arguments=None,
             when=None):
         """Super class of the individual processes"""
         self.image = image
         self.name = name
         self.template_name = template_name
-        self.daemon = deamon
+        self.daemon = daemon
         self.dependencies = dependencies
         self.resources = resources or []
         self.command = command
@@ -96,7 +96,8 @@ class Telstate(WorkflowStep):
 class Ingest(WorkflowStep):
     def __init__(
             self, step_id: int = None,
-            image: str="harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"):
+            image: str="harbor.sdp.kat.ac.za:443/infra/pocingest:0.5",
+            resources: dict = None):
         """Ingest step
 
         :param step_id: the unique ingest ID to be assigned to this process
@@ -107,7 +108,8 @@ class Ingest(WorkflowStep):
             template_name="ingest-template",
             dependencies=["telstate"],
             command=["python"],
-            image=image
+            image=image,
+            resources=resources
         )
         self.append_argument("./run.sh")
         self.append_argument("-u")
@@ -116,8 +118,9 @@ class Ingest(WorkflowStep):
 
 class Calibrator(WorkflowStep):
     def __init__(
-            self, step_id: int = None, resources: dict = None,
-            image: str = "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"):
+            self, step_id: int = None,
+            image: str = "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1",
+            resources: dict = None):
         """Calibrator step
 
         :param step_id: the unique calibrator ID to be assigned to this process
@@ -129,15 +132,7 @@ class Calibrator(WorkflowStep):
             dependencies=["telstate"],
             command=["python"],
             image=image,
-            resources=resources or {
-                "limits": {
-                    "cpu": "500m",
-                    "memory": "1Gi",
-                    "sdp.kat.ac.za/jellybeans": 1,  # Fake resource
-                },
-                "requests": {"cpu": "500m", "memory": "1Gi",
-                             "sdp.kat.ac.za/jellybeans": 1},
-            }
+            resources=resources
         )
         self.append_argument("./run.sh")
         self.append_argument("-u")
@@ -186,7 +181,7 @@ class Batch(WorkflowStep):
 class ProductControllerWorkflow:
     def __init__(
             self, namespace: int, config: dict, worker_count:
-            int = 10, ttl: int = 600):
+            int):
         """The Product Controller Workflow bringing together all steps in the
         workflow.
 
@@ -197,8 +192,8 @@ class ProductControllerWorkflow:
         self.api_version = "argoproj.io/v1alpha1"
         self.namespace = namespace
         self.name = f"product-controller-{namespace}"
-        self.ttl = ttl
         self.config = config
+        self.ttl = config["components"]["ttl"]
         self._setup_tasks(worker_count)
 
     def _setup_tasks(self, worker_count: int):
@@ -211,16 +206,33 @@ class ProductControllerWorkflow:
         components = self.config["components"]
         telstate_image = components["telstate"]["docker_image"]
         calibrator_image = components["calibrator"]["docker_image"]
-        calibrator_resources = components["calibrator"]["resources"]
+        calibrator_resources = self._get_resources("calibrator")
         ingest_image = components["ingest"]["docker_image"]
+        ingest_resources = self._get_resources("ingest")
         self.tasks = [Telstate(image=telstate_image)]
-        self.tasks += [Ingest(n + 1, image=ingest_image) for n in range(ingest_count)]
+        self.tasks += [
+            Ingest(
+                n + 1,
+                image=ingest_image,
+                resources=ingest_resources
+            ) for n in range(ingest_count)]
         self.tasks += [
             Calibrator(
                 n + 1,
                 image=calibrator_image,
                 resources=calibrator_resources
             ) for n in range(calib_count)]
+
+    def _get_resources(self, component: str):
+        """Get the specified component's configured resources or None.
+        If the resource doesn't have requests, then make requests == limit."""
+        components = self.config["components"]
+        resources = components[component].get("resources")
+        if not resources:
+            return None
+        if not resources.get("requests"):
+            resources["requests"] = resources["limits"]
+        return resources
 
     def _task_containers(self):
         """Make a set of unique tasks container template definitions.
