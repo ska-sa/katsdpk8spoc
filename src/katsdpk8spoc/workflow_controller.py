@@ -145,36 +145,42 @@ class Calibrator(WorkflowStep):
 
 
 class BatchSetup(WorkflowStep):
-    def __init__(self):
+    def __init__(
+            self, image: str="harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"):
         """Batch Setup step. This step waits for sufficient inputs from
         The Ingest and Calibartor to specify the number of batch processes
         to start.
         """
-        super().__init__()
-        self.name = "batch-setup"
-        self.template_name = "batch-setup-template"
-        self.image = "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
-        self.dependencies = ["telstate"]
-        self.command = ["python"]
+        super().__init__(
+            name="batch-setup",
+            template_name="batch-setup-template",
+            image=image,
+            dependencies=["telstate"],
+            command=["python"]
+        )
         self.append_argument("./run.sh")
         self.append_argument("-u")
         self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
 
 
 class Batch(WorkflowStep):
-    def __init__(self, number: int):
+    def __init__(
+            self, number: int, image: str="harbor.sdp.kat.ac.za:443/infra/pocbatch:0.1"):
         """The Batch step
 
-        :param number:
+        :param number: The batch process number. This number is compared to the
+            total desired runs. And skipped if larger.
+        :param image: The docker image to be used
         """
-        super().__init__()
-        self.name = f"batch{number}"
-        self.template_name = "batch-template"
-        self.image = "harbor.sdp.kat.ac.za:443/infra/pocbatch:0.1"
-        self.command = ["python"]
+        super().__init__(
+            name=f"batch{number}",
+            template_name="batch-template",
+            image=image,
+            command=["python"],
+            dependencies=["batch-setup"],
+            when=f"{{tasks.batch-setup.outputs.result}} >= {number}"
+        )
         self.append_argument("./run.sh")
-        self.dependencies = ["batch-setup"]
-        self.when = f"{{tasks.batch-setup.outputs.result}} >= {number}"
 
 
 class ProductControllerWorkflow:
