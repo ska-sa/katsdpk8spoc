@@ -12,12 +12,12 @@
       <div class="col-md-1"></div>
       <div class="col-md-3">
         <legend>Start</br></legend>
-        <form action="/start">
+        <form action="/product-configure" method="post">
             <fieldset>
                 <legend>Selecting subarray</legend>
                 <p>
                  <label>Subarray:</label>
-                 <select id = "subarray">
+                 <select id = "subarray" name = "subarray">
                    {% for subarray in subarrays %}
                      <option value = "{{subarray}}">{{subarray}}</option>
                    {% endfor %}
@@ -28,7 +28,7 @@
                 </p>
                 <p>
                   {% for receptor in receptors %}
-                    <input type="checkbox" id="{{receptor}}" name="{{receptor}}" value="{{receptor}}">
+                    <input type="checkbox" id="{{receptor}}" name="receptors[]" value="{{receptor}}">
                     <label for="{{receptor}}"> "{{receptor}}"</label><br>
                   {% endfor %}
                 </p>

@@ -43,8 +43,9 @@ class ProductController:
         :param receptors: Receptor number
         :return: status of the created workflow
         """
+        namespace = self.namespace
         wf = ProductControllerWorkflow(
-            self.namespace,
+            namespace,
             self.config,
             worker_count=self.calculate_batch_limit()
         )
@@ -53,14 +54,18 @@ class ProductController:
             "namespace": self.namespace,
             "workflow": wf.workflow(),
         }
-        url = "{}/api/v1/workflows/{}".format(self.config["argo_url"], self.namespace)
-        status = await argo_post(url, data=workflow_dict)
+        argo_url = self.config["argo_url"]
+        url = f"{argo_url}/api/v1/workflows/{namespace}"
+        try:
+            status = await self.argo_post(url, data=workflow_dict)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            status = "Error Server unreachable"
         return {"status": status, "workflow": workflow_dict}
 
     async def _stop_workflow(self, workflow_name: str):
         """Stop a subarray with
 
-        :param subarray: subarray number
+        :param subarray: subarray name
         :param workflow_name: workflow name
         :return: status of the stop request
         """
@@ -91,11 +96,15 @@ class ProductController:
     async def status(self):
         argo_base_url = self.config["argo_url"]
         subarray = self.name
-        url = f"{argo_base_url}/api/v1/workflows/sdparray{subarray}"
+        url = f"{argo_base_url}/api/v1/workflows/{subarray}"
         headers = {}
         if self.config.get("argo_token"):
             headers = {"Authorization": self.config.get("argo_token")}
-        return await argo_get(url, headers)
+        try:
+            status = await self.argo_get(url, headers)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            status = "Error Server unreachable"
+        return status
 
     def calculate_batch_limit(self):
         """This is the batch job size limit. For now we are returning 10,
@@ -103,6 +112,25 @@ class ProductController:
         The exact number of batch jobs depends on the, for now, "random" number
         obtained in the Calibrator and Ingest nodes."""
         return 10
+
+    @staticmethod
+    async def argo_get(url, headers=None):
+        """Get an ARGO Json to an URL"""
+        async with aiohttp.request("GET", url, headers=headers) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+        return data
+
+    @staticmethod
+    async def argo_post(url, headers=None, data=None):
+        """Post an ARGO JSON to an URL"""
+        headers = headers or {}
+        headers["content-type"] = "application/json"
+        logging.debug(data)
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post(url, json=data, headers=headers)
+            data = await resp.json()
+        return data
 
 
 class SDPController:
@@ -141,10 +169,10 @@ def dict2html(data: dict):
     return html
 
 
-def html_page(name: str, subarray: int, body: str = "", data: dict = None):
+def html_page(name: str, subarray: str, body: str = "", data: dict = None):
     html = "<html><body>"
     if subarray:
-        html += "<h1>{} subarray{}</h1>".format(name.title(), subarray)
+        html += "<h1>{} {}</h1>".format(name.title(), subarray)
     else:
         html += "<h1>{}</h1>".format(name.title())
     html += "<form action='/'><input type='submit' value='Home'></form>"
@@ -164,41 +192,11 @@ def html_page(name: str, subarray: int, body: str = "", data: dict = None):
     return html
 
 
-async def argo_post(url, headers=None, data=None):
-    """Post an ARGO JSON to an URL"""
-    headers = headers or {}
-    headers["content-type"] = "application/json"
-    async with aiohttp.ClientSession() as session:
-        resp = await session.post(url, json=data, headers=headers)
-        data = await resp.json()
-    return data
-
-
-async def argo_get(url, headers=None):
-    """Get an ARGO Json to an URL"""
-    async with aiohttp.request("GET", url, headers=headers) as resp:
-        assert resp.status == 200
-        data = await resp.json()
-    return data
-
-
 async def product_configure(request):
     """
     ---
     description: start a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: integer
-         required: true
-         description: The subarray ID.
-       - in: query
-         name: receptors
-         schema:
-           type: integer
-         required: true
-         description: The number of receptors in the subarray.
+
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -209,10 +207,13 @@ async def product_configure(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
+    logging.debug(post)
+    subarray = post.get('subarray', [])
+    receptors = post.getall('receptors[]', [])
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
-    response = await controller.start(subarray, receptors=request.query["receptors"])
-    buf = html_page("start", request.query["subarray"], data=response)
+    response = await controller.start(subarray, receptors=receptors)
+    buf = html_page("start", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -224,7 +225,7 @@ async def stop_handle(request):
        - in: query
          name: subarray
          schema:
-           type: integer
+           type: string
          required: true
          description: The subarray ID.
     responses:
@@ -238,7 +239,7 @@ async def stop_handle(request):
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
+    subarray = request.query["subarray"]
     response = await controller.stop(subarray)
     buf = html_page("stop", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
@@ -252,7 +253,7 @@ async def status_handle(request):
        - in: query
          name: subarray
          schema:
-           type: integer
+           type: string
          required: true
          description: The subarray ID.
     responses:
@@ -266,7 +267,7 @@ async def status_handle(request):
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
+    subarray = request.query["subarray"]
     response = await controller.status(subarray)
     buf = html_page("status", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
@@ -367,6 +368,7 @@ def get_config():
             config["argo_token"] = fileh.read().strip()
 
     logging.debug("config=%s", config)
+    logging.debug("---END CONFIGURE---")
     return config
 
 
@@ -390,7 +392,7 @@ def main():
     swagger.add_routes(
         [
             web.get("/", home_page),
-            web.get("/product-configure", product_configure),
+            web.post("/product-configure", product_configure),
             web.get("/stop", stop_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
