@@ -79,19 +79,21 @@ class ProductController:
         }
         async with aiohttp.ClientSession() as session:
             resp = await session.put(url, json=data, headers=_headers)
-            # assert resp.status == 200
+            assert resp.status == 200
             data = await resp.json()
         return data
 
     async def stop(self):
         status = await self.status()
+        if status.get("status", "") == "ERROR":
+            return status
         items = status.get("items")
         info = []
         if items:
             for wf in items:
                 res = await self._stop_workflow(wf["metadata"]["name"])
                 info.append(res)
-        return True
+        return {"status": "Completed", "info": info}
 
     async def status(self):
         argo_base_url = self.config["argo_url"]
@@ -103,7 +105,7 @@ class ProductController:
         try:
             status = await self.argo_get(url, headers)
         except aiohttp.client_exceptions.ClientConnectorError:
-            status = "Error Server unreachable"
+            status = {"status": "ERROR", "error": "Server unreachable"}
         return status
 
     def calculate_batch_limit(self):

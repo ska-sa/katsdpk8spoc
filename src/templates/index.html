@@ -42,12 +42,12 @@
         <legend>Stop</br></legend>
         <form action="/stop">
             <fieldset>
-                <p>
-                    <label for="subarray">Subarray (between 1 and 4):</label>
-                </p>
-                <p>
-                    <input type="number" id="subarray" name="subarray" min="1" max="4" value=1>
-                </p>
+                 <label>Subarray:</label>
+                 <select id = "subarray" name = "subarray">
+                   {% for subarray in subarrays %}
+                     <option value = "{{subarray}}">{{subarray}}</option>
+                   {% endfor %}
+                 </select>
                 <p>
                     <input type="submit" value="Stop">
                 </p>
@@ -58,12 +58,12 @@
         <legend>Status</br></legend>
         <form action="/status">
             <fieldset>
-                <p>
-                    <label for="subarray">Subarray (between 1 and 4):</label>
-                </p>
-                <p>
-                    <input type="number" id="subarray" name="subarray" min="1" max="4" value=1>
-                </p>
+                 <label>Subarray:</label>
+                 <select id = "subarray" name = "subarray">
+                   {% for subarray in subarrays %}
+                     <option value = "{{subarray}}">{{subarray}}</option>
+                   {% endfor %}
+                 </select>
                 <p>
                     <input type="submit" value="Status">
                 </p>
