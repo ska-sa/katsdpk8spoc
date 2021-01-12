@@ -8,6 +8,21 @@ subarrays:
     namespace: sdparray1
   subarray2:
     namespace: sdparray2
+antennas:
+  - "m000"
+  - "m001"
+  - "m002"
+  - "m003"
 components:
+  ttl: 600
   ingest:
-    image: cchristelis/ingest:0.5
+    default_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
+  telstate:
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/pocbatch_setup:0.4"
+  calibration:
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "1Gi"
+        sdp.kat.ac.za/jellybeans: 1  # Fake resource

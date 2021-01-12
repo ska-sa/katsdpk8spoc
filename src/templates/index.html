@@ -14,16 +14,23 @@
         <legend>Start</br></legend>
         <form action="/start">
             <fieldset>
+                <legend>Selecting subarray</legend>
                 <p>
-                  <label for="subarray">Subarray (between 1 and 4):</label>
+                 <label>Subarray:</label>
+                 <select id = "subarray">
+                   {% for subarray in subarrays %}
+                     <option value = "{{subarray}}">{{subarray}}</option>
+                   {% endfor %}
+                 </select>
                 </p>
                 <p>
-                  <input type="number" id="subarray" name="subarray" min="1" max="4" value=1 />
-                </p>
-                  <label for="receptors">Number of receptors (between 1 and 64):</label>
+                  <label for="receptors">Select of receptors:</label>
                 </p>
                 <p>
-                  <input type="number" id="receptors" name="receptors" min="1" max="64" value=16>
+                  {% for receptor in receptors %}
+                    <input type="checkbox" id="{{receptor}}" name="{{receptor}}" value="{{receptor}}">
+                    <label for="{{receptor}}"> "{{receptor}}"</label><br>
+                  {% endfor %}
                 </p>
                 <p>
                   <input type="submit" value="Start">

@@ -25,8 +25,10 @@ import aiohttp
 import yaml
 from aiohttp import web
 from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
+import jinja2
+import aiohttp_jinja2
 
-from .workflow_controller import ProductControllerWorkflow
+from workflow_controller import ProductControllerWorkflow
 
 
 class ProductController:
@@ -42,7 +44,9 @@ class ProductController:
         :return: status of the created workflow
         """
         wf = ProductControllerWorkflow(
-            self.namespace, worker_count=int(kwargs.get("receptors"))
+            self.namespace,
+            self.config,
+            worker_count=self.calculate_batch_limit()
         )
         workflow_dict = {
             "serverDryRun": False,
@@ -93,6 +97,13 @@ class ProductController:
             headers = {"Authorization": self.config.get("argo_token")}
         return await argo_get(url, headers)
 
+    def calculate_batch_limit(self):
+        """This is the batch job size limit. For now we are returning 10,
+        but later on we might have a better number.
+        The exact number of batch jobs depends on the, for now, "random" number
+        obtained in the Calibrator and Ingest nodes."""
+        return 10
+
 
 class SDPController:
     def __init__(self, config):
@@ -115,6 +126,14 @@ class SDPController:
 
     async def check(self):
         pass
+
+    def get_antennas(self):
+        """Get antennas/receptors that this controller is configured with."""
+        return self.config.get("antennas", [])
+
+    def get_subarrays(self):
+        """Get subarrays that this controller is configured with."""
+        return self.config.get("subarrays", [])
 
 
 def dict2html(data: dict):
@@ -163,7 +182,7 @@ async def argo_get(url, headers=None):
     return data
 
 
-async def start_handle(request):
+async def product_configure(request):
     """
     ---
     description: start a subarray
@@ -275,9 +294,16 @@ async def config_handle(request):
 
 
 async def home_page(request):
-    with open("src/katsdpk8spoc/index.html") as fh:
-        text = fh.read()
-    return web.Response(text=text.strip(), content_type="text/html")
+    controller = request.app["controller"]
+    antennas = controller.get_antennas()
+    subarrays = controller.get_subarrays()
+    context = {
+        "receptors": antennas,
+        "subarrays": subarrays
+    }
+    response = aiohttp_jinja2.render_template(
+        "index.html", request, context=context)
+    return response
 
 
 async def status_runner(app):
@@ -347,6 +373,10 @@ def get_config():
 def main():
     config = get_config()
     app = web.Application()
+    aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.FileSystemLoader("/src/templates")
+    )
     app["controller"] = SDPController(config)
     app.on_startup.append(start_background_tasks)
 
@@ -360,7 +390,7 @@ def main():
     swagger.add_routes(
         [
             web.get("/", home_page),
-            web.get("/start", start_handle),
+            web.get("/product-configure", product_configure),
             web.get("/stop", stop_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
