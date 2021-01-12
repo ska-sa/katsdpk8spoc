@@ -133,7 +133,7 @@ class ProductController:
 
     @staticmethod
     async def argo_get(url, headers=None):
-        """Get an ARGO Json to an URL"""
+        """Get an ARGO JSON to an URL"""
         async with aiohttp.request("GET", url, headers=headers) as resp:
             assert resp.status == 200
             data = await resp.json()
@@ -259,13 +259,6 @@ async def capture_init_handle(request):
     """
     ---
     description: trigger capture init on a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: string
-         required: true
-         description: The subarray ID.
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -276,10 +269,11 @@ async def capture_init_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
     controller = request.app["controller"]
-    subarray = request.query["subarray"]
+    subarray = post.get("subarray", [])
     response = await controller.capture_init(subarray)
-    buf = html_page("capture_init", request.query["subarray"], data=response)
+    buf = html_page("capture_init", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -287,13 +281,6 @@ async def capture_done_handle(request):
     """
     ---
     description: trigger capture done on a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: string
-         required: true
-         description: The subarray ID.
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -304,10 +291,11 @@ async def capture_done_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
     controller = request.app["controller"]
-    subarray = request.query["subarray"]
+    subarray = post.get('subarray', [])
     response = await controller.capture_done(subarray)
-    buf = html_page("capture_init", request.query["subarray"], data=response)
+    buf = html_page("capture_init", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -315,13 +303,6 @@ async def product_deconfigure_handle(request):
     """
     ---
     description: stop a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: string
-         required: true
-         description: The subarray ID.
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -332,10 +313,11 @@ async def product_deconfigure_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
     controller = request.app["controller"]
-    subarray = request.query["subarray"]
+    subarray = post.get('subarray', [])
     response = await controller.product_deconfigure(subarray)
-    buf = html_page("stop", request.query["subarray"], data=response)
+    buf = html_page("stop", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -363,7 +345,7 @@ async def status_handle(request):
     controller = request.app["controller"]
     subarray = request.query["subarray"]
     response = await controller.status(subarray)
-    buf = html_page("status", request.query["subarray"], data=response)
+    buf = html_page("status", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -489,9 +471,9 @@ def main():
         [
             web.get("/", home_page),
             web.post("/product-configure", product_configure_handle),
-            web.get("/capture-init", capture_init_handle),
-            web.get("/capture-done", capture_done_handle),
-            web.get("/product-deconfigure", product_deconfigure_handle),
+            web.post("/capture-init", capture_init_handle),
+            web.post("/capture-done", capture_done_handle),
+            web.post("/product-deconfigure", product_deconfigure_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
         ]
