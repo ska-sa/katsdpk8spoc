@@ -43,8 +43,9 @@ class ProductController:
         :param receptors: Receptor number
         :return: status of the created workflow
         """
+        namespace = self.namespace
         wf = ProductControllerWorkflow(
-            self.namespace,
+            namespace,
             self.config,
             worker_count=self.calculate_batch_limit()
         )
@@ -53,14 +54,18 @@ class ProductController:
             "namespace": self.namespace,
             "workflow": wf.workflow(),
         }
-        url = "{}/api/v1/workflows/{}".format(self.config["argo_url"], self.namespace)
-        status = await argo_post(url, data=workflow_dict)
+        argo_url = self.config["argo_url"]
+        url = f"{argo_url}/api/v1/workflows/{namespace}"
+        try:
+            status = await self.argo_post(url, data=workflow_dict)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            status = "Error Server unreachable"
         return {"status": status, "workflow": workflow_dict}
 
     async def _stop_workflow(self, workflow_name: str):
         """Stop a subarray with
 
-        :param subarray: subarray number
+        :param subarray: subarray name
         :param workflow_name: workflow name
         :return: status of the stop request
         """
@@ -74,28 +79,50 @@ class ProductController:
         }
         async with aiohttp.ClientSession() as session:
             resp = await session.put(url, json=data, headers=_headers)
-            # assert resp.status == 200
+            assert resp.status == 200
             data = await resp.json()
         return data
 
+    async def capture_init(self):
+        """
+        Ingest nodes capture data
+
+        :return: Status of ingest
+        """
+        return {"status": "capture_init"}
+
+    async def capture_done(self):
+        """
+        Ingest nodes capture data
+
+        :return: Status of ingest
+        """
+        return {"status": "capture_done"}
+
     async def stop(self):
         status = await self.status()
+        if status.get("status", "") == "ERROR":
+            return status
         items = status.get("items")
         info = []
         if items:
             for wf in items:
                 res = await self._stop_workflow(wf["metadata"]["name"])
                 info.append(res)
-        return True
+        return {"status": "product-deconfigure", "info": info}
 
     async def status(self):
         argo_base_url = self.config["argo_url"]
         subarray = self.name
-        url = f"{argo_base_url}/api/v1/workflows/sdparray{subarray}"
+        url = f"{argo_base_url}/api/v1/workflows/{subarray}"
         headers = {}
         if self.config.get("argo_token"):
             headers = {"Authorization": self.config.get("argo_token")}
-        return await argo_get(url, headers)
+        try:
+            status = await self.argo_get(url, headers)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            status = {"status": "ERROR", "error": "Server unreachable"}
+        return status
 
     def calculate_batch_limit(self):
         """This is the batch job size limit. For now we are returning 10,
@@ -103,6 +130,25 @@ class ProductController:
         The exact number of batch jobs depends on the, for now, "random" number
         obtained in the Calibrator and Ingest nodes."""
         return 10
+
+    @staticmethod
+    async def argo_get(url, headers=None):
+        """Get an ARGO JSON to an URL"""
+        async with aiohttp.request("GET", url, headers=headers) as resp:
+            assert resp.status == 200
+            data = await resp.json()
+        return data
+
+    @staticmethod
+    async def argo_post(url, headers=None, data=None):
+        """Post an ARGO JSON to an URL"""
+        headers = headers or {}
+        headers["content-type"] = "application/json"
+        logging.debug(data)
+        async with aiohttp.ClientSession() as session:
+            resp = await session.post(url, json=data, headers=headers)
+            data = await resp.json()
+        return data
 
 
 class SDPController:
@@ -115,10 +161,16 @@ class SDPController:
     def get_subarray(self, subarray):
         return self.subarray[subarray]
 
+    async def capture_init(self, subarray):
+        return await self.subarrays[subarray].capture_init()
+
+    async def capture_done(self, subarray):
+        return await self.subarrays[subarray].capture_done()
+
     async def start(self, subarray, *args, **kwargs):
         return await self.subarrays[subarray].start(*args, **kwargs)
 
-    async def stop(self, subarray):
+    async def product_deconfigure(self, subarray):
         return await self.subarrays[subarray].stop()
 
     async def status(self, subarray):
@@ -127,13 +179,27 @@ class SDPController:
     async def check(self):
         pass
 
-    def get_antennas(self):
-        """Get antennas/receptors that this controller is configured with."""
-        return self.config.get("antennas", [])
+    def get_receptors(self):
+        """Get receptors that this controller is configured with."""
+        return self.config.get("receptors", [])
 
     def get_subarrays(self):
         """Get subarrays that this controller is configured with."""
         return self.config.get("subarrays", [])
+
+    async def get_active_subarrays(self):
+        """Get the active subarrays"""
+        active_subarrays = []
+        for subarray in self.get_subarrays():
+            status = await self.status(subarray)
+            logging.debug("status=%s", status)
+
+            if not status:
+                continue
+            if "error" in status["status"].lower():
+                continue
+            active_subarrays.append(subarray)
+        return active_subarrays
 
 
 def dict2html(data: dict):
@@ -141,10 +207,10 @@ def dict2html(data: dict):
     return html
 
 
-def html_page(name: str, subarray: int, body: str = "", data: dict = None):
+def html_page(name: str, subarray: str, body: str = "", data: dict = None):
     html = "<html><body>"
     if subarray:
-        html += "<h1>{} subarray{}</h1>".format(name.title(), subarray)
+        html += "<h1>{} {}</h1>".format(name.title(), subarray)
     else:
         html += "<h1>{}</h1>".format(name.title())
     html += "<form action='/'><input type='submit' value='Home'></form>"
@@ -164,41 +230,11 @@ def html_page(name: str, subarray: int, body: str = "", data: dict = None):
     return html
 
 
-async def argo_post(url, headers=None, data=None):
-    """Post an ARGO JSON to an URL"""
-    headers = headers or {}
-    headers["content-type"] = "application/json"
-    async with aiohttp.ClientSession() as session:
-        resp = await session.post(url, json=data, headers=headers)
-        data = await resp.json()
-    return data
-
-
-async def argo_get(url, headers=None):
-    """Get an ARGO Json to an URL"""
-    async with aiohttp.request("GET", url, headers=headers) as resp:
-        assert resp.status == 200
-        data = await resp.json()
-    return data
-
-
-async def product_configure(request):
+async def product_configure_handle(request):
     """
     ---
-    description: start a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: integer
-         required: true
-         description: The subarray ID.
-       - in: query
-         name: receptors
-         schema:
-           type: integer
-         required: true
-         description: The number of receptors in the subarray.
+    description: configure a subarray
+
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -209,24 +245,20 @@ async def product_configure(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
+    logging.debug(post)
+    subarray = post.get('subarray', [])
+    receptors = post.getall('receptors[]', [])
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
-    response = await controller.start(subarray, receptors=request.query["receptors"])
-    buf = html_page("start", request.query["subarray"], data=response)
+    response = await controller.start(subarray, receptors=receptors)
+    buf = html_page("start", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
-async def stop_handle(request):
+async def capture_init_handle(request):
     """
     ---
-    description: stop a subarray
-    parameters:
-       - in: query
-         name: subarray
-         schema:
-           type: integer
-         required: true
-         description: The subarray ID.
+    description: trigger capture init on a subarray
     responses:
         "200":
             $ref: '#/components/responses/Reply200Ack'
@@ -237,10 +269,55 @@ async def stop_handle(request):
         "422":
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
+    post = await request.post()
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
-    response = await controller.stop(subarray)
-    buf = html_page("stop", request.query["subarray"], data=response)
+    subarray = post.get("subarray", [])
+    response = await controller.capture_init(subarray)
+    buf = html_page("capture_init", subarray, data=response)
+    return web.Response(body=buf, content_type="text/html")
+
+
+async def capture_done_handle(request):
+    """
+    ---
+    description: trigger capture done on a subarray
+    responses:
+        "200":
+            $ref: '#/components/responses/Reply200Ack'
+        "405":
+            $ref: '#/components/responses/HTTPMethodNotAllowed'
+        "421":
+            $ref: '#/components/responses/HTTPMisdirectedRequest'
+        "422":
+            $ref: '#/components/responses/HTTPUnprocessableEntity'
+    """
+    post = await request.post()
+    controller = request.app["controller"]
+    subarray = post.get('subarray', [])
+    response = await controller.capture_done(subarray)
+    buf = html_page("capture_init", subarray, data=response)
+    return web.Response(body=buf, content_type="text/html")
+
+
+async def product_deconfigure_handle(request):
+    """
+    ---
+    description: stop a subarray
+    responses:
+        "200":
+            $ref: '#/components/responses/Reply200Ack'
+        "405":
+            $ref: '#/components/responses/HTTPMethodNotAllowed'
+        "421":
+            $ref: '#/components/responses/HTTPMisdirectedRequest'
+        "422":
+            $ref: '#/components/responses/HTTPUnprocessableEntity'
+    """
+    post = await request.post()
+    controller = request.app["controller"]
+    subarray = post.get('subarray', [])
+    response = await controller.product_deconfigure(subarray)
+    buf = html_page("stop", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -252,7 +329,7 @@ async def status_handle(request):
        - in: query
          name: subarray
          schema:
-           type: integer
+           type: string
          required: true
          description: The subarray ID.
     responses:
@@ -266,9 +343,9 @@ async def status_handle(request):
             $ref: '#/components/responses/HTTPUnprocessableEntity'
     """
     controller = request.app["controller"]
-    subarray = "subarray{}".format(request.query["subarray"])
+    subarray = request.query["subarray"]
     response = await controller.status(subarray)
-    buf = html_page("status", request.query["subarray"], data=response)
+    buf = html_page("status", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
 
@@ -295,11 +372,13 @@ async def config_handle(request):
 
 async def home_page(request):
     controller = request.app["controller"]
-    antennas = controller.get_antennas()
+    receptors = controller.get_receptors()
     subarrays = controller.get_subarrays()
+    active_subarrays = await controller.get_active_subarrays()
     context = {
-        "receptors": antennas,
-        "subarrays": subarrays
+        "receptors": receptors,
+        "subarrays": subarrays,
+        "active_subarrays": active_subarrays
     }
     response = aiohttp_jinja2.render_template(
         "index.html", request, context=context)
@@ -367,6 +446,7 @@ def get_config():
             config["argo_token"] = fileh.read().strip()
 
     logging.debug("config=%s", config)
+    logging.debug("---END CONFIGURE---")
     return config
 
 
@@ -390,8 +470,10 @@ def main():
     swagger.add_routes(
         [
             web.get("/", home_page),
-            web.get("/product-configure", product_configure),
-            web.get("/stop", stop_handle),
+            web.post("/product-configure", product_configure_handle),
+            web.post("/capture-init", capture_init_handle),
+            web.post("/capture-done", capture_done_handle),
+            web.post("/product-deconfigure", product_deconfigure_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
         ]
