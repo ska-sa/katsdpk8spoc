@@ -179,9 +179,9 @@ class SDPController:
     async def check(self):
         pass
 
-    def get_antennas(self):
-        """Get antennas/receptors that this controller is configured with."""
-        return self.config.get("antennas", [])
+    def get_receptors(self):
+        """Get receptors that this controller is configured with."""
+        return self.config.get("receptors", [])
 
     def get_subarrays(self):
         """Get subarrays that this controller is configured with."""
@@ -390,11 +390,11 @@ async def config_handle(request):
 
 async def home_page(request):
     controller = request.app["controller"]
-    antennas = controller.get_antennas()
+    receptors = controller.get_receptors()
     subarrays = controller.get_subarrays()
     active_subarrays = await controller.get_active_subarrays()
     context = {
-        "receptors": antennas,
+        "receptors": receptors,
         "subarrays": subarrays,
         "active_subarrays": active_subarrays
     }
