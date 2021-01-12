@@ -49,8 +49,9 @@ class ProductController:
             self.config,
             worker_count=self.calculate_batch_limit()
         )
+        dry_run = kwargs.get('dry_run', False)
         workflow_dict = {
-            "serverDryRun": False,
+            "serverDryRun": dry_run,
             "namespace": self.namespace,
             "workflow": wf.workflow(),
         }
@@ -248,9 +249,11 @@ async def product_configure_handle(request):
     post = await request.post()
     logging.debug(post)
     subarray = post.get('subarray', [])
+    dry_run = True if 'dry_run' in post else False
     receptors = post.getall('receptors[]', [])
     controller = request.app["controller"]
-    response = await controller.start(subarray, receptors=receptors)
+    response = await controller.start(
+        subarray, receptors=receptors, dry_run=dry_run)
     buf = html_page("start", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 
