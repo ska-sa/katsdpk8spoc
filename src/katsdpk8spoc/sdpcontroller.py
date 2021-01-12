@@ -83,6 +83,22 @@ class ProductController:
             data = await resp.json()
         return data
 
+    async def capture_init(self):
+        """
+        Ingest nodes capture data
+
+        :return: Status of ingest
+        """
+        return {"status": "capture_init"}
+
+    async def capture_done(self):
+        """
+        Ingest nodes capture data
+
+        :return: Status of ingest
+        """
+        return {"status": "capture_done"}
+
     async def stop(self):
         status = await self.status()
         if status.get("status", "") == "ERROR":
@@ -93,7 +109,7 @@ class ProductController:
             for wf in items:
                 res = await self._stop_workflow(wf["metadata"]["name"])
                 info.append(res)
-        return {"status": "Completed", "info": info}
+        return {"status": "product-deconfigure", "info": info}
 
     async def status(self):
         argo_base_url = self.config["argo_url"]
@@ -145,10 +161,16 @@ class SDPController:
     def get_subarray(self, subarray):
         return self.subarray[subarray]
 
+    async def capture_init(self, subarray):
+        return await self.subarrays[subarray].capture_init()
+
+    async def capture_done(self, subarray):
+        return await self.subarrays[subarray].capture_done()
+
     async def start(self, subarray, *args, **kwargs):
         return await self.subarrays[subarray].start(*args, **kwargs)
 
-    async def stop(self, subarray):
+    async def product_deconfigure(self, subarray):
         return await self.subarrays[subarray].stop()
 
     async def status(self, subarray):
@@ -164,6 +186,20 @@ class SDPController:
     def get_subarrays(self):
         """Get subarrays that this controller is configured with."""
         return self.config.get("subarrays", [])
+
+    async def get_active_subarrays(self):
+        """Get the active subarrays"""
+        active_subarrays = []
+        for subarray in self.get_subarrays():
+            status = await self.status(subarray)
+            logging.debug("status=%s", status)
+
+            if not status:
+                continue
+            if "error" in status["status"].lower():
+                continue
+            active_subarrays.append(subarray)
+        return active_subarrays
 
 
 def dict2html(data: dict):
@@ -194,10 +230,10 @@ def html_page(name: str, subarray: str, body: str = "", data: dict = None):
     return html
 
 
-async def product_configure(request):
+async def product_configure_handle(request):
     """
     ---
-    description: start a subarray
+    description: configure a subarray
 
     responses:
         "200":
@@ -219,7 +255,63 @@ async def product_configure(request):
     return web.Response(body=buf, content_type="text/html")
 
 
-async def stop_handle(request):
+async def capture_init_handle(request):
+    """
+    ---
+    description: trigger capture init on a subarray
+    parameters:
+       - in: query
+         name: subarray
+         schema:
+           type: string
+         required: true
+         description: The subarray ID.
+    responses:
+        "200":
+            $ref: '#/components/responses/Reply200Ack'
+        "405":
+            $ref: '#/components/responses/HTTPMethodNotAllowed'
+        "421":
+            $ref: '#/components/responses/HTTPMisdirectedRequest'
+        "422":
+            $ref: '#/components/responses/HTTPUnprocessableEntity'
+    """
+    controller = request.app["controller"]
+    subarray = request.query["subarray"]
+    response = await controller.capture_init(subarray)
+    buf = html_page("capture_init", request.query["subarray"], data=response)
+    return web.Response(body=buf, content_type="text/html")
+
+
+async def capture_done_handle(request):
+    """
+    ---
+    description: trigger capture done on a subarray
+    parameters:
+       - in: query
+         name: subarray
+         schema:
+           type: string
+         required: true
+         description: The subarray ID.
+    responses:
+        "200":
+            $ref: '#/components/responses/Reply200Ack'
+        "405":
+            $ref: '#/components/responses/HTTPMethodNotAllowed'
+        "421":
+            $ref: '#/components/responses/HTTPMisdirectedRequest'
+        "422":
+            $ref: '#/components/responses/HTTPUnprocessableEntity'
+    """
+    controller = request.app["controller"]
+    subarray = request.query["subarray"]
+    response = await controller.capture_done(subarray)
+    buf = html_page("capture_init", request.query["subarray"], data=response)
+    return web.Response(body=buf, content_type="text/html")
+
+
+async def product_deconfigure_handle(request):
     """
     ---
     description: stop a subarray
@@ -242,7 +334,7 @@ async def stop_handle(request):
     """
     controller = request.app["controller"]
     subarray = request.query["subarray"]
-    response = await controller.stop(subarray)
+    response = await controller.product_deconfigure(subarray)
     buf = html_page("stop", request.query["subarray"], data=response)
     return web.Response(body=buf, content_type="text/html")
 
@@ -300,9 +392,11 @@ async def home_page(request):
     controller = request.app["controller"]
     antennas = controller.get_antennas()
     subarrays = controller.get_subarrays()
+    active_subarrays = await controller.get_active_subarrays()
     context = {
         "receptors": antennas,
-        "subarrays": subarrays
+        "subarrays": subarrays,
+        "active_subarrays": active_subarrays
     }
     response = aiohttp_jinja2.render_template(
         "index.html", request, context=context)
@@ -394,8 +488,10 @@ def main():
     swagger.add_routes(
         [
             web.get("/", home_page),
-            web.post("/product-configure", product_configure),
-            web.get("/stop", stop_handle),
+            web.post("/product-configure", product_configure_handle),
+            web.get("/capture-init", capture_init_handle),
+            web.get("/capture-done", capture_done_handle),
+            web.get("/product-deconfigure", product_deconfigure_handle),
             web.get("/status", status_handle),
             web.get("/config", config_handle),
         ]

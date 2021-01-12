@@ -11,7 +11,7 @@
     <div class="row">
       <div class="col-md-1"></div>
       <div class="col-md-3">
-        <legend>Start</br></legend>
+        <legend>Product Configure</br></legend>
         <form action="/product-configure" method="post">
             <fieldset>
                 <legend>Selecting subarray</legend>
@@ -39,17 +39,17 @@
         </form>
     </div>
     <div class="col-md-3">
-        <legend>Stop</br></legend>
-        <form action="/stop">
+        <legend>Product Deconfigure</br></legend>
+        <form action="/product-deconfigure">
             <fieldset>
                  <label>Subarray:</label>
                  <select id = "subarray" name = "subarray">
-                   {% for subarray in subarrays %}
+                   {% for subarray in active_subarrays %}
                      <option value = "{{subarray}}">{{subarray}}</option>
                    {% endfor %}
                  </select>
                 <p>
-                    <input type="submit" value="Stop">
+                    <input type="submit" value="Product Deconfigure">
                 </p>
             </fieldset>
         </form>
@@ -71,5 +71,40 @@
         </form>
     </div>
     <div class="col-md-2"></div></div>
+   <div class="row">
+      <div class="col-md-1"></div>
+     <div class="col-md-3">
+        <legend>Capture Init</br></legend>
+        <form action="/capture-init">
+            <fieldset>
+                 <label>Subarray:</label>
+                 <select id = "subarray" name = "subarray">
+                   {% for subarray in active_subarrays %}
+                     <option value = "{{subarray}}">{{subarray}}</option>
+                   {% endfor %}
+                 </select>
+                <p>
+                    <input type="submit" value="Start Capture">
+                </p>
+            </fieldset>
+        </form>
+    </div>
+     <div class="col-md-3">
+        <legend>Capture Done</br></legend>
+        <form action="/capture-done">
+            <fieldset>
+                 <label>Subarray:</label>
+                 <select id = "subarray" name = "subarray">
+                   {% for subarray in active_subarrays %}
+                     <option value = "{{subarray}}">{{subarray}}</option>
+                   {% endfor %}
+                 </select>
+                <p>
+                    <input type="submit" value="Capture Done">
+                </p>
+            </fieldset>
+        </form>
+    </div>
+   </div>
   </body>
 </html>

@@ -15,4 +15,6 @@ strict-rfc3339==0.7
 typing-extensions==3.7.4.3
 yarl==1.6.3
 katversion==1.1
-aiohttp-jinja2
+MarkupSafe==1.1.1
+Jinja2==2.11.2
+aiohttp-jinja2==1.4.2
