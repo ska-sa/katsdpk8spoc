@@ -28,7 +28,7 @@ from aiohttp_swagger3 import SwaggerDocs, SwaggerUiSettings
 import jinja2
 import aiohttp_jinja2
 
-from workflow_controller import ProductControllerWorkflow
+from katsdpk8spoc.workflow_controller import ProductControllerWorkflow
 
 
 class ProductController:
@@ -101,7 +101,7 @@ class ProductController:
 
     async def stop(self):
         status = await self.status()
-        if status.get("status", "") == "ERROR":
+        if status.get("status") == "ERROR":
             return status
         items = status.get("items")
         info = []
@@ -196,7 +196,7 @@ class SDPController:
 
             if not status:
                 continue
-            if "error" in status["status"].lower():
+            if status.get('status') == 'ERROR':
                 continue
             active_subarrays.append(subarray)
         return active_subarrays
@@ -455,7 +455,7 @@ def main():
     app = web.Application()
     aiohttp_jinja2.setup(
         app,
-        loader=jinja2.FileSystemLoader("/src/templates")
+        loader=jinja2.FileSystemLoader("src/templates")
     )
     app["controller"] = SDPController(config)
     app.on_startup.append(start_background_tasks)
