@@ -120,9 +120,12 @@ class ProductController:
         if self.config.get("argo_token"):
             headers = {"Authorization": self.config.get("argo_token")}
         try:
-            status = await self.argo_get(url, headers)
+            status = await asyncio.wait_for(self.argo_get(url, headers), 1)
+        except asyncio.TimeoutError:
+            status = {"status": "ERROR", "error": "Status check timed out."}
         except aiohttp.client_exceptions.ClientConnectorError:
-            status = {"status": "ERROR", "error": "Server unreachable"}
+            status = {"status": "ERROR", "error": "Server unreachable."}
+        logging.debug(type(status))
         return status
 
     def calculate_batch_limit(self):
