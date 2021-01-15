@@ -8,7 +8,7 @@ subarrays:
     namespace: sdparray1
   subarray2:
     namespace: sdparray2
-antennas:
+receptors:
   - "m000"
   - "m001"
   - "m002"
