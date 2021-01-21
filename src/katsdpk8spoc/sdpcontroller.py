@@ -252,7 +252,7 @@ async def product_configure_handle(request):
     post = await request.post()
     logging.debug(post)
     subarray = post.get('subarray', [])
-    dry_run = True if 'dry_run' in post else False
+    dry_run = 'dry_run' in post
     receptors = post.getall('receptors[]', [])
     controller = request.app["controller"]
     response = await controller.start(
