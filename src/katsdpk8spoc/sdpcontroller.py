@@ -49,8 +49,9 @@ class ProductController:
             self.config,
             worker_count=self.calculate_batch_limit()
         )
+        dry_run = kwargs.get('dry_run', False)
         workflow_dict = {
-            "serverDryRun": False,
+            "serverDryRun": dry_run,
             "namespace": self.namespace,
             "workflow": wf.workflow(),
         }
@@ -119,9 +120,12 @@ class ProductController:
         if self.config.get("argo_token"):
             headers = {"Authorization": self.config.get("argo_token")}
         try:
-            status = await self.argo_get(url, headers)
+            status = await asyncio.wait_for(self.argo_get(url, headers), 1)
+        except asyncio.TimeoutError:
+            status = {"status": "ERROR", "error": "Status check timed out."}
         except aiohttp.client_exceptions.ClientConnectorError:
-            status = {"status": "ERROR", "error": "Server unreachable"}
+            status = {"status": "ERROR", "error": "Server unreachable."}
+        logging.debug(type(status))
         return status
 
     def calculate_batch_limit(self):
@@ -248,9 +252,11 @@ async def product_configure_handle(request):
     post = await request.post()
     logging.debug(post)
     subarray = post.get('subarray', [])
+    dry_run = 'dry_run' in post
     receptors = post.getall('receptors[]', [])
     controller = request.app["controller"]
-    response = await controller.start(subarray, receptors=receptors)
+    response = await controller.start(
+        subarray, receptors=receptors, dry_run=dry_run)
     buf = html_page("start", subarray, data=response)
     return web.Response(body=buf, content_type="text/html")
 

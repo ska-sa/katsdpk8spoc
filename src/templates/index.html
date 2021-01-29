@@ -24,12 +24,16 @@
                  </select>
                 </p>
                 <p>
+                    <input type="checkbox" id="dry_run" name="dry_run" value=true>
+                    <label for="dry_run">Dry Run</label><br>
+                </p>
+                <p>
                   <label for="receptors">Select of receptors:</label>
                 </p>
                 <p>
                   {% for receptor in receptors %}
                     <input type="checkbox" id="{{receptor}}" name="receptors[]" value="{{receptor}}">
-                    <label for="{{receptor}}"> "{{receptor}}"</label><br>
+                    <label for="{{receptor}}">{{receptor}}</label><br>
                   {% endfor %}
                 </p>
                 <p>
