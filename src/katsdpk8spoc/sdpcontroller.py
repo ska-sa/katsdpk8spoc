@@ -114,7 +114,7 @@ class ProductController:
 
     async def status(self):
         argo_base_url = self.config["argo_url"]
-        subarray = self.name
+        subarray = self.namespace
         url = f"{argo_base_url}/api/v1/workflows/{subarray}"
         headers = {}
         if self.config.get("argo_token"):
@@ -125,8 +125,9 @@ class ProductController:
             status = {"status": "ERROR", "error": "Status check timed out."}
         except aiohttp.client_exceptions.ClientConnectorError:
             status = {"status": "ERROR", "error": "Server unreachable."}
-        logging.debug(type(status))
-        return status
+        if not status['items']:
+            return {"status": "stopped"}
+        return {"status": "running", "configuration": status['items']}
 
     def calculate_batch_limit(self):
         """This is the batch job size limit. For now we are returning 10,
