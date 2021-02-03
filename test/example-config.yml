@@ -14,13 +14,17 @@ receptors:
   - "m002"
   - "m003"
 components:
-  ttl: 600
+  ttl: 6000
+  head:
+    docker_image: "bash"
   ingest:
-    docker_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
+    # docker_image: "harbor.sdp.kat.ac.za:443/infra/pocingest:0.5"
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/katsdpdatawriter"
   telstate:
     docker_image: "harbor.sdp.kat.ac.za:443/infra/redis:latest"
   calibrator:
-    docker_image: "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"
+    # docker_image: "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1"
+    docker_image: "harbor.sdp.kat.ac.za:443/infra/katsdpdatawriter"
     resources:
       limits:
         cpu: "500m"

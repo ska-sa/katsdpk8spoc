@@ -25,20 +25,24 @@ class WorkflowStep:
     def __init__(
             self, image=None, name=None, template_name=None, daemon=False,
             dependencies=None, resources=None, command=None, arguments=None,
+            args=None,
+            hostnetwork=False,
             when=None):
         """Super class of the individual processes"""
         self.image = image
         self.name = name
         self.template_name = template_name
         self.daemon = daemon
+        self.hostnetwork = hostnetwork
         self.dependencies = dependencies
         self.resources = resources or []
         self.command = command
         self.arguments = arguments or []
+        self.args = args or [] # Container args. Template arguments are translated to args that gets appended to command.
         self.when = when
 
     def append_named_argument(self, name, value, is_input=True):
-        self.arguments.append({"name": name, "value": value, "input": is_input})
+        self.arguments.append({"name": name, "value": value, "is_input": is_input})
 
     def append_argument(self, value):
         rndm = random.randint(10000, 100000)
@@ -58,6 +62,7 @@ class WorkflowStep:
             for arg in self.arguments:
                 params.append({"name": arg["name"], "value": arg["value"]})
             step["arguments"] = {"parameters": params}
+        step['hostNetwork'] = self.hostnetwork
         return step
 
     def get_template(self):
@@ -67,6 +72,7 @@ class WorkflowStep:
         template = {"container": {"image": self.image}, "name": self.template_name}
         if self.command:
             template["container"]["command"] = self.command
+            template["container"]["args"] = self.args
         if self.arguments:
             params = []
             for arg in self.arguments:
@@ -79,6 +85,7 @@ class WorkflowStep:
             template["container"]["resources"] = self.resources
         if self.when:
             template["when"] = self.when
+        template['hostNetwork'] = bool(self.hostnetwork)
         return template
 
 
@@ -92,11 +99,36 @@ class Telstate(WorkflowStep):
             daemon=True
         )
 
+class Head(WorkflowStep):
+    def __init__(
+            self, step_id: int = None,
+            image: str="harbor.sdp.kat.ac.za:443/infra/pocingest:0.5",
+            resources: dict = None,
+            dependencies=[]):
+        """Ingest step
+
+        :param step_id: the unique ingest ID to be assigned to this process
+        :param image: the docker image to be used
+        """
+        super().__init__(
+            name=f"realtimehead",
+            template_name="head-template",
+            dependencies=dependencies,
+            command=["sleep", '120'],
+            image=image,
+            resources=resources
+        )
+        #self.append_argument("sleep")
+        #self.append_argument("120")
+        #self.append_argument("./run.sh")
+        #self.append_argument("-u")
+        #self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
+
 
 class Ingest(WorkflowStep):
     def __init__(
             self, step_id: int = None,
-            image: str="harbor.sdp.kat.ac.za:443/infra/pocingest:0.5",
+            image: str = None,
             resources: dict = None):
         """Ingest step
 
@@ -107,19 +139,26 @@ class Ingest(WorkflowStep):
             name=f"ingest{step_id}",
             template_name="ingest-template",
             dependencies=["telstate"],
-            command=["python"],
+            # command=["tail", "-f"],
+            command=["spead2_send.py"],
+            args=["{{ inputs.parameters.mcast-addr }}"],
             image=image,
-            resources=resources
+            resources=resources,
+            daemon=True,
+            hostnetwork=True
         )
-        self.append_argument("./run.sh")
-        self.append_argument("-u")
-        self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
+        self.append_named_argument("mcast-addr", "239.23.9.{}:6789".format(step_id))
+        #self.append_argument("tail")
+        #self.append_argument("-f")
+        #self.append_argument("./run.sh")
+        #self.append_argument("-u")
+        #self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
 
 
 class Calibrator(WorkflowStep):
     def __init__(
             self, step_id: int = None,
-            image: str = "harbor.sdp.kat.ac.za:443/infra/poccalibrator:0.1",
+            image: str = None,
             resources: dict = None):
         """Calibrator step
 
@@ -130,13 +169,18 @@ class Calibrator(WorkflowStep):
             name=f"calibrator{step_id}",
             template_name="calibrator-template",
             dependencies=["telstate"],
-            command=["python"],
+            command=["spead2_recv.py"],
+            args=["{{ inputs.parameters.mcast-addr }}"],
             image=image,
-            resources=resources
+            resources=resources,
+            daemon=True,
+            hostnetwork=True
         )
-        self.append_argument("./run.sh")
-        self.append_argument("-u")
-        self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
+        self.append_named_argument("mcast-addr", "239.23.9.{}:6789".format(step_id))
+        #self.append_argument("-f")
+        #self.append_argument("./run.sh")
+        #self.append_argument("-u")
+        #self.append_named_argument("tasks-telstate-ip", "{{tasks.telstate.ip}}")
 
 
 class BatchSetup(WorkflowStep):
@@ -210,18 +254,28 @@ class ProductControllerWorkflow:
         ingest_image = components["ingest"]["docker_image"]
         ingest_resources = self._get_resources("ingest")
         self.tasks = [Telstate(image=telstate_image)]
-        self.tasks += [
-            Ingest(
-                n + 1,
-                image=ingest_image,
-                resources=ingest_resources
-            ) for n in range(ingest_count)]
-        self.tasks += [
-            Calibrator(
+        realtime_head_dependencies = []
+        for n in range(ingest_count):
+            task = Ingest(
+                    n + 1,
+                    image=ingest_image,
+                    resources=ingest_resources
+                ) 
+            self.tasks.append(task)
+            realtime_head_dependencies.append(task.name)
+        for n in range(calib_count):
+            task = Calibrator(
                 n + 1,
                 image=calibrator_image,
                 resources=calibrator_resources
-            ) for n in range(calib_count)]
+            ) 
+            self.tasks.append(task)
+            realtime_head_dependencies.append(task.name)
+        print(realtime_head_dependencies)
+        task = Head(0, image=components["head"]["docker_image"],
+                resources=self._get_resources("head"),
+                dependencies=realtime_head_dependencies)
+        self.tasks.append(task)
 
     def _get_resources(self, component: str):
         """Get the specified component's configured resources or None.
@@ -254,6 +308,7 @@ class ProductControllerWorkflow:
             "kind": "Workflow",
             "metadata": {"namespace": self.namespace, "name": self.name},
             "spec": {
+                "hostNetwork": True,
                 "entrypoint": self.name,
                 "serviceAccountName": "workflow",
                 "ttlStrategy": {
