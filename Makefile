@@ -1,3 +1,4 @@
+VER := $(shell grep -v "\#" semver)
 
 all: devrun
 
@@ -22,8 +23,9 @@ activate:
 	@echo source ./.venv/bin/activate
 
 build:
-	docker build -t harbor.sdp.kat.ac.za/science/katsdpk8spoc:martin .
+	docker build -t harbor.sdp.kat.ac.za/science/katsdpk8spoc:$(VER) .
+	helm package chart/katsdpk8spoc -d chart --version $(VER)
 
 push:
-	docker push harbor.sdp.kat.ac.za/science/katsdpk8spoc:martin
-
+	docker tag harbor.sdp.kat.ac.za/science/katsdpk8spoc:$(VER) harbor.sdp.kat.ac.za:443/science/katsdpk8spoc:$(VER)
+	docker push harbor.sdp.kat.ac.za:443/science/katsdpk8spoc:$(VER)
