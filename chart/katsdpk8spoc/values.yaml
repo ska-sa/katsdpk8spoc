@@ -75,3 +75,32 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+appConfig:
+  argo_url: http://argo.sdp.kat.ac.za
+  serviceaccount: workflow
+  subarrays:
+    subarray1:
+      namespace: sdparray1
+    subarray2:
+      namespace: sdparray2
+  receptors:
+    - "m000"
+    - "m001"
+    - "m002"
+    - "m003"
+  components:
+    ttl: 6000
+    head:
+      docker_image: "bash"
+    ingest:
+      docker_image: "harbor.sdp.kat.ac.za:443/infra/katsdpdatawriter"
+    telstate:
+      docker_image: "harbor.sdp.kat.ac.za:443/infra/redis:latest"
+    calibrator:
+      docker_image: "harbor.sdp.kat.ac.za:443/infra/katsdpdatawriter"
+      resources:
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
+          sdp.kat.ac.za/jellybeans: 1

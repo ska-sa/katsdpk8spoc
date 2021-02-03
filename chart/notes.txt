@@ -1,0 +1,12 @@
+
+use make build
+to build the docker image and chart
+
+use make push
+to push the Docker image to SDP registry
+Copy (scp) the chart to Kubernetes node. On Kubernetes node run 
+helm delete katsdpk8spoc; helm install katsdpk8spoc ./katsdpk8spoc-0.1.1.tgz
+
+TODO:
+- ConfigMap holding configuration should be defined in values.yml or should have its contents from values.yml.
+- Push Helm chart to Harbor.
