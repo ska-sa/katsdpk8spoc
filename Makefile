@@ -22,9 +22,13 @@ setup: venv install
 activate:
 	@echo source ./.venv/bin/activate
 
-build:
+builddocker:
 	docker build -t harbor.sdp.kat.ac.za/science/katsdpk8spoc:$(VER) .
+
+buildhelm:
 	helm package chart/katsdpk8spoc -d chart --version $(VER)
+
+build: builddocker buildhelm
 
 push:
 	docker tag harbor.sdp.kat.ac.za/science/katsdpk8spoc:$(VER) harbor.sdp.kat.ac.za:443/science/katsdpk8spoc:$(VER)

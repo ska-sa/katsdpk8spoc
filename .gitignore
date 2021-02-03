@@ -135,3 +135,7 @@ dmypy.json
 *.pyc
 *.pyo
 *.pyd
+
+# Tar files.
+*.tgz
+*.tag.gz
