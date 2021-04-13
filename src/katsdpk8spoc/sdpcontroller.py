@@ -164,7 +164,7 @@ class SDPController:
             self.subarrays[subarray] = ProductController(subarray, config)
 
     def get_subarray(self, subarray):
-        return self.subarray[subarray]
+        return self.subarrays[subarray]
 
     async def capture_init(self, subarray):
         return await self.subarrays[subarray].capture_init()
